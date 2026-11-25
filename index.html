@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>焙煎ログ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#d9d9d9;--panel:#ececec;--edge:#9a9a9a;--ink:#1c1c1c;--fc:#c0392b;--sc:#7d3c98}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;font-size:14px;-webkit-text-size-adjust:100%}
+  header{display:flex;align-items:center;gap:8px;padding:6px 10px;padding-top:max(6px,env(safe-area-inset-top));background:linear-gradient(#f4f4f4,#cfcfcf);border-bottom:1px solid var(--edge);position:sticky;top:0;z-index:5}
+  header h1{font-size:15px;margin:0}
+  .tabs{margin-left:auto;display:flex;gap:4px}
+  .tabs button{border:1px solid var(--edge);background:#f7f7f7;padding:6px 9px;border-radius:4px;font-size:13px;color:#222}
+  .tabs button.on{background:#555;color:#fff;border-color:#333}
+  .view{display:none}.view.on{display:block}
+  .wrap{padding:8px;max-width:1200px;margin:0 auto}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .main{display:grid;grid-template-columns:1fr 190px;gap:8px}
+  @media (max-width:760px){.main{grid-template-columns:1fr}.lcds{flex-direction:row!important;flex-wrap:wrap}.lcd{flex:1 1 30%}.lcd b{font-size:24px!important}}
+  .chartbox{background:#fff;border:1px solid var(--edge);border-radius:3px;position:relative;height:min(55vh,520px);min-height:280px}
+  .lcds{display:flex;flex-direction:column;gap:6px}
+  .lcd{background:#000;border:2px solid #444;border-radius:3px;padding:4px 8px;color:#bbb;font-size:11px}
+  .lcd b{display:block;font-family:"Share Tech Mono",monospace;font-size:30px;line-height:1.05;text-align:right;font-weight:400}
+  .lcd.t b{color:#3cff5a}.lcd.bt b{color:#5ab8ff}.lcd.ror b{color:#ffd23c}.lcd.ph b{font-size:18px!important;color:#ddd}
+  .phasebar{display:flex;height:22px;border:1px solid var(--edge);border-radius:3px;overflow:hidden;margin:8px 0 6px;font-size:11px;background:#fff}
+  .phasebar div{display:flex;align-items:center;justify-content:center;color:#fff;white-space:nowrap;overflow:hidden}
+  .ph-dry{background:#5d9e3a}.ph-mai{background:#d68a1e}.ph-dev{background:#7a4a24}
+  .panel{background:var(--panel);border:1px solid var(--edge);border-radius:3px;padding:8px;margin-top:8px}
+  label.f{display:flex;flex-direction:column;font-size:11px;color:#444;gap:2px}
+  input,select{font-size:16px;padding:6px 8px;border:1px solid #999;border-radius:3px;background:#fff;color:#111}
+  .btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .ab{border:1px solid #555;border-radius:3px;padding:10px 14px;font-size:14px;font-weight:700;background:linear-gradient(#fafafa,#cfcfcf);min-width:84px;color:#111}
+  .ab:disabled{opacity:.4}
+  .ab.start{background:linear-gradient(#5ccf6b,#2e8b3b);color:#fff}
+  .ab.stop{background:linear-gradient(#ff7a6b,#c0392b);color:#fff}
+  .ab.fc{background:linear-gradient(#f6b0a8,#d9655a)}
+  .ab.sc{background:linear-gradient(#d7b4e6,#9b59b6);color:#fff}
+  .ab.mic{background:linear-gradient(#9ad1ff,#3a8fd6);color:#fff}
+  .status{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .dot{width:12px;height:12px;border-radius:50%;background:#999;flex:none}
+  .dot.on{background:#e74c3c;animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  .heard{font-family:"Share Tech Mono",monospace;background:#111;color:#9f9;padding:6px 8px;border-radius:3px;min-height:30px;flex:1;font-size:14px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  table.log{width:100%;border-collapse:collapse;font-size:13px;background:#fff}
+  table.log th,table.log td{border:1px solid #c8c8c8;padding:3px 6px;text-align:right}
+  table.log th{background:#eee}
+  table.log td.ev{text-align:left;font-weight:700}
+  .ev-fc{color:var(--fc)}.ev-sc{color:var(--sc)}
+  .result{display:none;background:#fff;border:2px solid #7a4a24;border-radius:4px;padding:10px;margin-top:8px}
+  .result.on{display:block}
+  .result h2{margin:0 0 6px;font-size:18px}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:4px 12px;font-size:13px}
+  .grid2 span{color:#666}
+  .note{font-size:12px;color:#555;margin-top:6px;line-height:1.6}
+  .toast{position:fixed;left:50%;top:60px;transform:translateX(-50%);background:#222;color:#fff;padding:8px 14px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9;max-width:90vw;text-align:center}
+  .toast.on{opacity:.92}
+  .card{background:#fff;border:1px solid #aaa;border-radius:4px;padding:8px 10px;margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .card .nm{font-weight:700;flex:1;min-width:180px}
+  .badge{font-size:11px;padding:2px 6px;border-radius:10px;color:#fff}
+  .ok{background:#2e8b3b}.ng{background:#c0392b}.wait{background:#888}
+  .card a{font-size:13px}
+  code{background:#eee;padding:1px 4px;border-radius:3px;font-size:12px;word-break:break-all}
+</style>
+</head>
+<body>
+<header>
+  <h1>☕ 焙煎ログ</h1>
+  <div class="tabs">
+    <button id="tabRoast" class="on">焙煎</button>
+    <button id="tabHist">履歴</button>
+    <button id="tabSet">設定</button>
+  </div>
+</header>
+
+<!-- ===== 焙煎 ===== -->
+<section id="viewRoast" class="view on"><div class="wrap">
+  <div class="row">
+    <label class="f" style="flex:2;min-width:160px">豆の名前<input id="bean" placeholder="例: エチオピア イルガチェフェ"></label>
+    <label class="f" style="flex:1;min-width:90px">生豆(g)<input id="green" type="number" inputmode="decimal" placeholder="任意"></label>
+  </div>
+  <div class="phasebar">
+    <div class="ph-dry" id="pDry" style="flex:1">乾燥</div>
+    <div class="ph-mai" id="pMai" style="flex:0"></div>
+    <div class="ph-dev" id="pDev" style="flex:0"></div>
+  </div>
+  <div class="main">
+    <div class="chartbox"><canvas id="chart"></canvas></div>
+    <div class="lcds">
+      <div class="lcd t">経過時間<b id="lcdTime">00:00</b></div>
+      <div class="lcd bt">BT 豆温度 ℃<b id="lcdBT">---.-</b></div>
+      <div class="lcd ror">ΔBT ℃/分<b id="lcdROR">--.-</b></div>
+      <div class="lcd ph">1ハゼから<b id="lcdDev">--:--</b></div>
+      <div class="lcd ph">発達率 DTR<b id="lcdDTR">--.-%</b></div>
+    </div>
+  </div>
+  <div class="status">
+    <div class="dot" id="micDot"></div>
+    <div class="heard" id="heard">スタートを押すと音声認識が始まります</div>
+  </div>
+  <div class="btns">
+    <button class="ab start" id="btnStart">▶ スタート</button>
+    <button class="ab mic" id="btnMic" style="display:none">🎤 マイク再開</button>
+    <button class="ab fc" id="btnFC" disabled>1ハゼ</button>
+    <button class="ab sc" id="btnSC" disabled>2ハゼ</button>
+    <button class="ab stop" id="btnStop" disabled>■ ストップ</button>
+    <button class="ab" id="btnUndo" disabled>↶ 1つ戻す</button>
+  </div>
+  <div class="btns">
+    <input id="manual" type="number" inputmode="decimal" placeholder="温度を手入力" style="width:140px" disabled>
+    <button class="ab" id="btnManual" disabled>記録</button>
+  </div>
+  <div class="note">話し方：「180」「185度」「1ハゼ」「1ハゼ 196」「2ハゼ」「ストップ」</div>
+
+  <div class="result" id="result">
+    <h2 id="resTitle">焙煎度：—</h2>
+    <div class="grid2" id="resGrid"></div>
+    <div class="btns">
+      <label class="f">焙煎後(g)<input id="roasted" type="number" inputmode="decimal" placeholder="任意" style="width:110px"></label>
+      <label class="f">焙煎度(変更可)<select id="degSel"></select></label>
+      <button class="ab" id="btnResUpdate" style="align-self:flex-end">更新して再保存</button>
+      <button class="ab start" id="btnNew" style="align-self:flex-end">次の焙煎へ</button>
+    </div>
+    <div class="note" id="sendState"></div>
+    <div class="note" id="resNote"></div>
+  </div>
+
+  <div class="panel">
+    <table class="log"><thead><tr><th>経過</th><th>温度 ℃</th><th>ΔBT</th><th style="text-align:left">イベント</th></tr></thead><tbody id="logBody"></tbody></table>
+  </div>
+</div></section>
+
+<!-- ===== 履歴 ===== -->
+<section id="viewHist" class="view"><div class="wrap">
+  <div class="note" style="margin-bottom:8px">この端末で焙煎した記録です。スプレッドシートへの送信に失敗したものは「再送」できます。</div>
+  <div id="histList"></div>
+</div></section>
+
+<!-- ===== 設定 ===== -->
+<section id="viewSet" class="view"><div class="wrap">
+  <div class="panel" style="margin-top:0">
+    <label class="f">GoogleスプレッドシートのウェブアプリURL（…/exec で終わるもの）
+      <input id="gasUrl" placeholder="https://script.google.com/macros/s/xxxx/exec"></label>
+    <label class="f" style="margin-top:8px">合言葉（Apps Scriptに書いたものと同じ。空でも可）
+      <input id="gasKey" placeholder="任意"></label>
+    <div class="btns">
+      <button class="ab start" id="btnSaveSet">保存</button>
+      <button class="ab" id="btnTest">接続テスト</button>
+    </div>
+    <div class="note" id="testState"></div>
+  </div>
+  <div class="panel">
+    <b>音が鳴る / マイクのテスト</b>
+    <div class="btns">
+      <button class="ab" id="tTemp">温度の音</button>
+      <button class="ab fc" id="tFC">1ハゼの音</button>
+      <button class="ab sc" id="tSC">2ハゼの音</button>
+      <button class="ab stop" id="tStop">ストップの音</button>
+    </div>
+    <div class="note">iPhoneは本体横のスイッチがマナーモード（消音）だと音が鳴りません。音声認識には「設定 → 一般 → キーボード → 音声入力」と「Siri」をオンにしておいてください。</div>
+  </div>
+</div></section>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= 基本 ================= */
+const DEGREES=["ライト","シナモン","ミディアム","ハイ","シティ","フルシティ","フレンチ","イタリアン"];
+const $=id=>document.getElementById(id);
+const LS={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+const fmt=s=>{s=Math.max(0,Math.round(s));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function toast(m){const t=$("toast");t.textContent=m;t.classList.add("on");clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove("on"),1800);}
+const fresh=()=>({id:null,startMs:null,running:false,done:false,points:[],fc:null,sc:null,end:null,history:[]});
+let S=fresh(), timerId=null, audio=null;
+const nowSec=()=>S.startMs?(Date.now()-S.startMs)/1000:0;
+
+/* ================= 効果音（Web Audio） ================= */
+function ensureAudio(){
+  try{
+    if(!audio) audio=new (window.AudioContext||window.webkitAudioContext)();
+    if(audio.state!=="running") audio.resume();
+    // iOSのロック解除用に無音を1つ鳴らす
+    const b=audio.createBuffer(1,1,22050),s=audio.createBufferSource();s.buffer=b;s.connect(audio.destination);s.start(0);
+  }catch(e){}
+}
+function tone(f,st,dur,type="sine",vol=.35){
+  if(!audio)return; if(audio.state!=="running") audio.resume();
+  const o=audio.createOscillator(),g=audio.createGain();o.type=type;o.frequency.value=f;
+  const t0=audio.currentTime+st;g.gain.setValueAtTime(.0001,t0);g.gain.exponentialRampToValueAtTime(vol,t0+.01);g.gain.exponentialRampToValueAtTime(.0001,t0+dur);
+  o.connect(g).connect(audio.destination);o.start(t0);o.stop(t0+dur+.02);
+}
+const SOUND={
+  temp(){tone(1046,0,.13,"sine",.35);},                                                    // ピッ
+  fc(){[659,880,1175].forEach((f,i)=>{tone(f,i*.13,.18,"triangle",.45);tone(f,.5+i*.13,.18,"triangle",.45);});}, // ピロリン×2
+  sc(){[523,392].forEach((f,i)=>{tone(f,i*.22,.3,"square",.2);tone(f,.55+i*.22,.3,"square",.2);});tone(784,1.1,.35,"square",.2);}, // ポーンポーン
+  stop(){tone(880,0,.25,"sawtooth",.18);tone(660,.25,.25,"sawtooth",.18);tone(440,.5,.6,"sawtooth",.18);}, // 下降
+  start(){tone(784,0,.1);tone(1046,.12,.15);},
+  err(){tone(200,0,.2,"square",.12);}
+};
+
+/* ================= 音声 → コマンド ================= */
+const KDIG={"〇":0,"零":0,"一":1,"二":2,"三":3,"四":4,"五":5,"六":6,"七":7,"八":8,"九":9};
+function kanjiToNum(str){let total=0,cur=0;for(const ch of str){if(ch in KDIG)cur=cur*10+KDIG[ch];else if(ch==="百"){total+=(cur||1)*100;cur=0;}else if(ch==="十"){total+=(cur||1)*10;cur=0;}}return total+cur;}
+const HZ="(ハゼ|はぜ|ハセ|はせ|バセ|ばせ|バゼ|ばぜ|パゼ|ぱぜ|爆ぜ|爆|クラック|crack)";
+const RE_FC=new RegExp("(1|一|１|いち|いっ|ワン|ファースト|first)\\s*"+HZ,"i");
+const RE_SC=new RegExp("(2|二|２|に|ツー|つー|セカンド|second)\\s*"+HZ,"i");
+const RE_STOP=/(ストップ|すとっぷ|stop|停止|終了|ドロップ|drop)/i;
+const validTemp=v=>v>=50&&v<=300;
+function tokenize(raw){
+  let t=raw, m;
+  while((m=t.match(RE_FC))) t=t.slice(0,m.index)+" FC "+t.slice(m.index+m[0].length);
+  while((m=t.match(RE_SC))) t=t.slice(0,m.index)+" SC "+t.slice(m.index+m[0].length);
+  t=t.replace(new RegExp(RE_STOP.source,"gi")," STOP ");
+  t=t.replace(/[０-９．]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
+  t=t.replace(/[〇零一二三四五六七八九百十]+/g,x=>/[百十]/.test(x)||x.length>1?String(kanjiToNum(x)):x);
+  const out=[];
+  (t.match(/FC|SC|STOP|\d+(?:\.\d+)?/g)||[]).forEach(k=>{
+    if(k==="FC"||k==="SC"||k==="STOP") out.push(k);
+    else if(validTemp(+k)) out.push(+k);
+  });
+  return out;
+}
+function runTokens(tokens){
+  for(let i=0;i<tokens.length;i++){
+    const k=tokens[i];
+    if(k==="FC"||k==="SC"){
+      let temp=null; if(typeof tokens[i+1]==="number"){temp=tokens[i+1];i++;}
+      markEvent(k==="FC"?"fc":"sc",temp);
+    }else if(k==="STOP"){ stopRoast(); return; }
+    else addTemp(k);
+  }
+}
+
+/* ================= ブラウザの音声認識（Safari / Chrome） ================= */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let rec=null, recOn=false, wantRec=false;
+let consumed={}, stableTimer=null, lastStart=0;
+function makeRec(){
+  const r=new SR(); r.lang="ja-JP"; r.continuous=true; r.interimResults=true; r.maxAlternatives=1;
+  r.onstart=()=>{recOn=true;$("micDot").classList.add("on");$("btnMic").style.display="none";};
+  r.onresult=e=>{
+    let latestI=e.resultIndex;
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const res=e.results[i], text=res[0].transcript;
+      if(res.isFinal){ consume(i,text); }
+      else { $("heard").textContent="… "+text; latestI=i; }
+    }
+    // Safariは確定(isFinal)が遅いので、0.8秒言葉が変わらなければ確定扱いにする
+    clearTimeout(stableTimer);
+    const i=e.results.length-1, res=e.results[i];
+    if(res && !res.isFinal){ const text=res[0].transcript; stableTimer=setTimeout(()=>consume(i,text),800); }
+  };
+  r.onerror=e=>{
+    if(e.error==="not-allowed"||e.error==="service-not-allowed"){ wantRec=false; $("heard").textContent="マイクが許可されていません（設定でSiri・音声入力をオンに）"; $("btnMic").style.display=""; }
+  };
+  r.onend=()=>{
+    recOn=false; $("micDot").classList.remove("on"); consumed={};
+    if(wantRec && S.running){
+      // 自動で聞き直す（すぐ止まる場合は少し待つ）
+      const wait=Date.now()-lastStart<1000?600:50;
+      setTimeout(()=>{ if(wantRec&&S.running&&!recOn) startRec(true); },wait);
+    }
+  };
+  return r;
+}
+function consume(i,text){
+  const toks=tokenize(text), done=consumed[i]||0;
+  if(toks.length>done){ consumed[i]=toks.length; runTokens(toks.slice(done)); }
+  else if(!toks.length && text.trim() && S.running) $("heard").textContent="？ "+text;
+}
+function startRec(auto){
+  if(!SR){ $("heard").textContent="このブラウザは音声認識に対応していません。ボタンと手入力で記録できます"; return; }
+  wantRec=true;
+  try{ if(!rec) rec=makeRec(); lastStart=Date.now(); rec.start(); }
+  catch(e){ if(!auto){ try{rec.abort();}catch(_){ } rec=makeRec(); try{rec.start();}catch(_){ $("btnMic").style.display=""; } } else { $("btnMic").style.display=""; } }
+}
+function stopRec(){ wantRec=false; clearTimeout(stableTimer); try{ rec&&rec.stop(); }catch(e){} }
+
+/* ================= 記録 ================= */
+const lastTemp=()=>S.points.length?S.points[S.points.length-1].temp:null;
+function addTemp(v){
+  if(!S.running)return; const t=nowSec();
+  S.points.push({t,temp:v}); S.history.push("temp"); SOUND.temp();
+  $("heard").textContent=`✓ ${fmt(t)}  ${v.toFixed(1)}℃`; refresh(); saveDraft();
+}
+function markEvent(kind,temp){
+  if(!S.running)return;
+  const name=kind==="fc"?"1ハゼ":"2ハゼ";
+  if(S[kind]){ toast(name+"は記録済みです"); return; }
+  const t=nowSec();
+  if(temp!=null){ S.points.push({t,temp}); S.history.push("temp"); }
+  S[kind]={t,temp:temp!=null?temp:lastTemp()}; S.history.push(kind);
+  (kind==="fc"?SOUND.fc:SOUND.sc)();
+  $("heard").textContent=`★ ${name} ${fmt(t)}${S[kind].temp!=null?"  "+S[kind].temp.toFixed(1)+"℃":""}`;
+  toast(name+" を記録しました"); refresh(); saveDraft();
+}
+function undo(){ const h=S.history.pop(); if(!h)return; if(h==="temp")S.points.pop(); else S[h]=null; toast("1つ取り消しました"); refresh(); saveDraft(); }
+function rorSeries(p){
+  const out=[];
+  for(let i=1;i<p.length;i++){ let j=i-1; while(j>0&&p[i].t-p[j-1].t<=30)j--; const dt=p[i].t-p[j].t; if(dt>=5) out.push({x:p[i].t,y:(p[i].temp-p[j].temp)/dt*60}); }
+  return out;
+}
+function dryEnd(p){ for(let i=1;i<p.length;i++){const a=p[i-1],b=p[i]; if(a.temp<150&&b.temp>=150) return {t:a.t+(b.t-a.t)*((150-a.temp)/(b.temp-a.temp)),temp:150};} return null; }
+
+/* ================= 焙煎度 ================= */
+function calcDegree(r){
+  const endT=r.end?.temp, total=r.end?r.end.t:0, cand=[], basis=[];
+  if(endT!=null){ let lv=[200,207,213,219,225,231,240].findIndex(x=>endT<x); if(lv<0)lv=7; cand.push(lv); basis.push(`終了温度 ${endT.toFixed(1)}℃ → ${DEGREES[lv]}`); }
+  if(r.sc){ const d=total-r.sc.t, lv=d<30?5:d<90?6:7; cand.push(lv); basis.push(`2ハゼ後 ${fmt(d)} で終了 → ${DEGREES[lv]}`); }
+  else if(r.fc){ const d=total-r.fc.t, lv=d<45?1:d<90?2:d<150?3:d<210?4:5; cand.push(lv); basis.push(`1ハゼ後 ${fmt(d)} で終了 → ${DEGREES[lv]}`); }
+  else { cand.push(0); basis.push("1ハゼ未記録 → ライト寄り"); }
+  const g=r.greenG, w=r.roastedG;
+  if(g>0&&w>0&&w<g){ const loss=(g-w)/g*100; let lv=[12,13.5,14.5,15.5,16.5,17.5,19].findIndex(x=>loss<x); if(lv<0)lv=7; cand.push(lv,lv); basis.push(`重量減少率 ${loss.toFixed(1)}% → ${DEGREES[lv]}（重み2倍）`); }
+  let lv=Math.round(cand.reduce((a,b)=>a+b,0)/cand.length);
+  if(r.sc) lv=Math.max(lv,5); if(!r.fc&&!r.sc) lv=Math.min(lv,1);
+  return {degree:DEGREES[lv],basis};
+}
+function summary(r){
+  const total=r.end?r.end.t:0, de=dryEnd(r.points), dev=r.fc?total-r.fc.t:null;
+  return {total,charge:r.points[0]?.temp??null,dryT:de?.t??null,fcT:r.fc?.t??null,fcTemp:r.fc?.temp??null,scT:r.sc?.t??null,scTemp:r.sc?.temp??null,
+    endTemp:r.end?.temp??null,dev,dtr:dev!=null&&total?dev/total*100:null,loss:r.greenG>0&&r.roastedG>0?(r.greenG-r.roastedG)/r.greenG*100:null};
+}
+function summaryPairs(r){
+  const s=summary(r), f1=v=>v!=null?+v.toFixed(1):"";
+  return [["豆の名前",r.bean],["焙煎度",r.degree],["自動判定",r.degreeAuto],["日付",dateStr(r.startMs)],["開始時刻",new Date(r.startMs).toLocaleTimeString("ja-JP")],
+    ["生豆(g)",r.greenG??""],["焙煎後(g)",r.roastedG??""],["重量減少率(%)",f1(s.loss)],["総時間",fmt(s.total)],["投入時温度(℃)",f1(s.charge)],
+    ["乾燥終了(150℃)",s.dryT!=null?fmt(s.dryT):""],["1ハゼ 時間",s.fcT!=null?fmt(s.fcT):""],["1ハゼ 温度(℃)",f1(s.fcTemp)],
+    ["2ハゼ 時間",s.scT!=null?fmt(s.scT):""],["2ハゼ 温度(℃)",f1(s.scTemp)],["終了温度(℃)",f1(s.endTemp)],
+    ["発達時間",s.dev!=null?fmt(s.dev):""],["発達率 DTR(%)",f1(s.dtr)]];
+}
+function rowsFor(r){
+  const rm=new Map(rorSeries(r.points).map(p=>[p.x,p.y]));
+  const rows=r.points.map(p=>({t:p.t,temp:p.temp,ror:rm.get(p.t)??null,ev:""}));
+  const put=(e,lab)=>{ if(!e)return; const hit=rows.find(x=>Math.abs(x.t-e.t)<1&&x.temp===e.temp); if(hit) hit.ev=(hit.ev?hit.ev+"・":"")+lab; else rows.push({t:e.t,temp:e.temp,ror:null,ev:lab}); };
+  put(r.fc,"1ハゼ"); put(r.sc,"2ハゼ"); put(r.end,"終了");
+  rows.sort((a,b)=>a.t-b.t); if(rows[0]&&!rows[0].ev) rows[0].ev="投入";
+  return rows;
+}
+const dateStr=ms=>{const d=new Date(ms);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;};
+
+/* ================= 開始・停止 ================= */
+function startRoast(){
+  ensureAudio();
+  startRec(false);                       // タップの直後にマイク開始（iPhoneはこれが必須）
+  S=fresh(); S.id="r"+Date.now(); S.running=true; S.startMs=Date.now();
+  S.bean=$("bean").value.trim()||"名称未設定"; S.greenG=parseFloat($("green").value)||null;
+  LS.set("bean",$("bean").value);
+  $("result").classList.remove("on"); setButtons(); SOUND.start(); toast("焙煎スタート");
+  timerId=setInterval(tick,250); refresh(); saveDraft();
+  try{ navigator.wakeLock&&navigator.wakeLock.request("screen").catch(()=>{}); }catch(e){}
+}
+function stopRoast(){
+  if(!S.running)return;
+  S.end={t:nowSec(),temp:lastTemp()??0}; S.running=false; S.done=true; clearInterval(timerId);
+  stopRec(); SOUND.stop(); setButtons(); refresh();
+  const d=calcDegree(S); S.degree=d.degree; S.degreeAuto=d.degree;
+  showResult(d); storeRecord(); sendRecord(S.id);
+  try{localStorage.removeItem("draft");}catch(e){}
+}
+function showResult(d){
+  const s=summary(S);
+  $("resTitle").textContent=`焙煎度：${S.degree}`;
+  const it=[["総時間",fmt(s.total)],["1ハゼ",s.fcT!=null?`${fmt(s.fcT)} / ${s.fcTemp?.toFixed(1)??"—"}℃`:"—"],["2ハゼ",s.scT!=null?`${fmt(s.scT)} / ${s.scTemp?.toFixed(1)??"—"}℃`:"—"],
+    ["終了温度",s.endTemp!=null?s.endTemp.toFixed(1)+"℃":"—"],["発達時間",s.dev!=null?fmt(s.dev):"—"],["発達率 DTR",s.dtr!=null?s.dtr.toFixed(1)+"%":"—"],["重量減少率",s.loss!=null?s.loss.toFixed(1)+"%":"—"]];
+  $("resGrid").innerHTML=it.map(([k,v])=>`<div><span>${k}</span><br><b>${esc(v)}</b></div>`).join("");
+  $("degSel").innerHTML=DEGREES.map(x=>`<option${x===S.degree?" selected":""}>${x}</option>`).join("");
+  $("resNote").innerHTML="判定の根拠：<br>"+d.basis.map(esc).join("<br>")+"<br>※温度計の位置や焙煎機で変わる目安です。焙煎後の重さを入れると精度が上がります。";
+  $("result").classList.add("on"); $("result").scrollIntoView({behavior:"smooth"});
+}
+function setButtons(){
+  const r=S.running;
+  $("btnStart").disabled=r; ["btnFC","btnSC","btnStop","btnUndo","manual","btnManual"].forEach(id=>$(id).disabled=!r);
+  $("bean").disabled=r; $("green").disabled=r; if(!r) $("btnMic").style.display="none";
+}
+function tick(){ const t=nowSec(); $("lcdTime").textContent=fmt(t); if(S.fc){$("lcdDev").textContent=fmt(t-S.fc.t);$("lcdDTR").textContent=((t-S.fc.t)/t*100).toFixed(1)+"%";} phases(t); }
+function saveDraft(){ LS.set("draft",S); }
+
+/* ================= グラフ（Artisan風） ================= */
+const eventPlugin={id:"events",afterDatasetsDraw(chart,a,opts){
+  const r=opts.roast; if(!r)return; const {ctx,chartArea:A,scales:{x,y}}=chart, evs=[];
+  if(r.points[0]) evs.push({lab:"CHARGE",t:r.points[0].t,temp:r.points[0].temp,c:"#2e8b3b"});
+  const de=dryEnd(r.points); if(de) evs.push({lab:"DRY",t:de.t,temp:150,c:"#5d9e3a"});
+  if(r.fc) evs.push({lab:"1ハゼ",t:r.fc.t,temp:r.fc.temp,c:"#c0392b"});
+  if(r.sc) evs.push({lab:"2ハゼ",t:r.sc.t,temp:r.sc.temp,c:"#7d3c98"});
+  if(r.end) evs.push({lab:"DROP",t:r.end.t,temp:r.end.temp,c:"#222"});
+  ctx.save(); ctx.font="bold 11px sans-serif";
+  evs.forEach((e,i)=>{
+    const px=x.getPixelForValue(e.t); ctx.strokeStyle=e.c; ctx.setLineDash([4,3]); ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(px,A.top); ctx.lineTo(px,A.bottom); ctx.stroke(); ctx.setLineDash([]);
+    if(e.temp==null)return; const py=y.getPixelForValue(e.temp);
+    const t1=`${e.lab} ${fmt(e.t)}`, t2=`${e.temp.toFixed(1)}℃`, w=Math.max(ctx.measureText(t1).width,ctx.measureText(t2).width)+10;
+    let bx=px+6, by=py-(i%2?54:40); if(bx+w>A.right) bx=px-w-6; if(by<A.top) by=py+10;
+    ctx.fillStyle="rgba(255,255,240,.95)"; ctx.strokeStyle=e.c; ctx.lineWidth=1.2; ctx.beginPath(); ctx.rect(bx,by,w,30); ctx.fill(); ctx.stroke();
+    ctx.fillStyle=e.c; ctx.fillText(t1,bx+5,by+12); ctx.fillStyle="#222"; ctx.fillText(t2,bx+5,by+25);
+    ctx.beginPath(); ctx.arc(px,py,4,0,Math.PI*2); ctx.fillStyle=e.c; ctx.fill();
+  }); ctx.restore();
+}};
+const chart=new Chart($("chart"),{type:"line",
+  data:{datasets:[
+    {label:"BT 豆温度",data:[],borderColor:"#0a5c90",backgroundColor:"#0a5c90",borderWidth:2.5,pointRadius:3,tension:.25,yAxisID:"y"},
+    {label:"ΔBT ℃/分",data:[],borderColor:"#4a9bc9",backgroundColor:"#4a9bc9",borderWidth:1.5,pointRadius:0,tension:.35,yAxisID:"y2"}]},
+  options:{responsive:true,maintainAspectRatio:false,animation:false,parsing:false,
+    plugins:{legend:{position:"top",labels:{boxWidth:14,font:{size:11}}},events:{roast:null},tooltip:{callbacks:{title:it=>fmt(it[0].parsed.x)}}},
+    scales:{x:{type:"linear",min:0,suggestedMax:600,ticks:{stepSize:60,callback:v=>fmt(v)},grid:{color:"#e4e4e4"},title:{display:true,text:"時間"}},
+      y:{suggestedMin:50,suggestedMax:250,grid:{color:"#e4e4e4"},title:{display:true,text:"温度 ℃"}},
+      y2:{position:"right",suggestedMin:0,suggestedMax:30,grid:{display:false},title:{display:true,text:"ΔBT ℃/分"}}}}, plugins:[eventPlugin]});
+function refresh(){
+  chart.options.plugins.events.roast=S;
+  chart.data.datasets[0].data=S.points.map(p=>({x:p.t,y:p.temp}));
+  const ror=rorSeries(S.points); chart.data.datasets[1].data=ror;
+  const t=S.running?nowSec():(S.end?.t||0); chart.options.scales.x.suggestedMax=Math.max(600,t+60); chart.update("none");
+  const lt=lastTemp(); $("lcdBT").textContent=lt!=null?lt.toFixed(1):"---.-";
+  $("lcdROR").textContent=ror.length?ror[ror.length-1].y.toFixed(1):"--.-";
+  if(!S.fc){$("lcdDev").textContent="--:--";$("lcdDTR").textContent="--.-%";}
+  else if(S.end){$("lcdDev").textContent=fmt(S.end.t-S.fc.t);$("lcdDTR").textContent=((S.end.t-S.fc.t)/S.end.t*100).toFixed(1)+"%";}
+  phases(t); renderLog();
+}
+function phases(t){
+  const de=dryEnd(S.points), dry=de?de.t:t, mai=de?((S.fc?S.fc.t:t)-de.t):0, dev=S.fc?t-S.fc.t:0, tot=Math.max(1,dry+mai+dev);
+  $("pDry").style.flex=Math.max(dry,.001); $("pMai").style.flex=Math.max(mai,0); $("pDev").style.flex=Math.max(dev,0);
+  $("pDry").textContent=`乾燥 ${fmt(dry)} ${(dry/tot*100).toFixed(0)}%`;
+  $("pMai").textContent=mai>0?`メイラード ${fmt(mai)} ${(mai/tot*100).toFixed(0)}%`:"";
+  $("pDev").textContent=dev>0?`発達 ${fmt(dev)} ${(dev/tot*100).toFixed(0)}%`:"";
+}
+function renderLog(){
+  const rows=rowsFor(S).reverse();
+  $("logBody").innerHTML=rows.map(r=>{const c=r.ev.includes("1ハゼ")?"ev-fc":r.ev.includes("2ハゼ")?"ev-sc":"";
+    return `<tr><td>${fmt(r.t)}</td><td>${r.temp!=null?r.temp.toFixed(1):""}</td><td>${r.ror!=null?r.ror.toFixed(1):""}</td><td class="ev ${c}">${r.ev}</td></tr>`;}).join("")
+    ||`<tr><td colspan="4" style="text-align:center;color:#888">まだ記録はありません</td></tr>`;
+}
+
+/* ================= 保存とスプレッドシート送信 ================= */
+function records(){ return LS.get("records",[]); }
+function storeRecord(){
+  const list=records().filter(r=>r.id!==S.id);
+  list.unshift({id:S.id,bean:S.bean,degree:S.degree,degreeAuto:S.degreeAuto,startMs:S.startMs,greenG:S.greenG,roastedG:S.roastedG||null,
+    points:S.points,fc:S.fc,sc:S.sc,end:S.end,sent:false,sheetName:null,url:null});
+  LS.set("records",list.slice(0,200)); renderHist();
+}
+function payload(r){
+  const rows=rowsFor(r).map(x=>[+(x.t/60).toFixed(3),fmt(x.t),x.temp!=null?+x.temp.toFixed(1):"",x.ror!=null?+x.ror.toFixed(1):"",
+    x.ev.includes("1ハゼ")?x.temp:"",x.ev.includes("2ハゼ")?x.temp:"",x.ev]);
+  return {key:LS.get("gasKey",""),roastId:r.id,sheetName:`${r.bean} ${r.degree} ${dateStr(r.startMs)}`,
+    title:`${r.bean}  ${r.degree}  ${dateStr(r.startMs)}`,summary:summaryPairs(r),rows};
+}
+async function postGAS(body){
+  const url=LS.get("gasUrl","");
+  if(!url) throw new Error("設定タブでスプレッドシートのURLを入れてください");
+  const res=await fetch(url,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(body)});
+  const j=await res.json(); if(!j.ok) throw new Error(j.error||"エラー"); return j;
+}
+async function sendRecord(id){
+  const list=records(), r=list.find(x=>x.id===id); if(!r)return;
+  const st=$("sendState"); if(id===S.id) st.textContent="スプレッドシートに送信中…";
+  try{
+    const j=await postGAS(payload(r));
+    r.sent=true; r.sheetName=j.sheetName; r.url=j.url; LS.set("records",list);
+    if(id===S.id) st.innerHTML=`✅ シート「${esc(j.sheetName)}」に保存しました <a href="${esc(j.url)}" target="_blank">開く</a>`;
+    toast("スプレッドシートに保存しました");
+  }catch(e){
+    r.sent=false; LS.set("records",list);
+    if(id===S.id) st.textContent="⚠ 送信できませんでした："+e.message+"（履歴タブから再送できます）";
+    toast("送信失敗："+e.message); SOUND.err();
+  }
+  renderHist();
+}
+function renderHist(){
+  const list=records();
+  $("histList").innerHTML=list.length?list.map(r=>`<div class="card"><div class="nm">${esc(r.bean)}　${esc(r.degree)}<br><span style="font-weight:400;font-size:12px;color:#666">${dateStr(r.startMs)}　${fmt(r.end?.t||0)}　終了${r.end?.temp?.toFixed(1)??"—"}℃</span></div>
+    <span class="badge ${r.sent?"ok":"ng"}">${r.sent?"送信済":"未送信"}</span>
+    ${r.url?`<a href="${esc(r.url)}" target="_blank">シートを開く</a>`:""}
+    <button class="ab" style="min-width:auto;padding:6px 10px" data-send="${r.id}">${r.sent?"再送":"送信"}</button>
+    <button class="ab" style="min-width:auto;padding:6px 10px" data-del="${r.id}">削除</button></div>`).join(""):`<div class="note">まだ記録はありません</div>`;
+  $("histList").querySelectorAll("[data-send]").forEach(b=>b.onclick=()=>sendRecord(b.dataset.send));
+  $("histList").querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
+    if(!b.dataset.c){b.dataset.c=1;b.textContent="本当に？";setTimeout(()=>{delete b.dataset.c;b.textContent="削除";},3000);return;}
+    LS.set("records",records().filter(x=>x.id!==b.dataset.del)); renderHist(); toast("この端末の記録を削除しました（シートは残ります）");});
+}
+
+/* ================= 画面操作 ================= */
+$("btnStart").onclick=startRoast;
+$("btnMic").onclick=()=>{ensureAudio();startRec(false);};
+$("btnFC").onclick=()=>{ensureAudio();markEvent("fc",null);};
+$("btnSC").onclick=()=>{ensureAudio();markEvent("sc",null);};
+$("btnStop").onclick=()=>{ensureAudio();stopRoast();};
+$("btnUndo").onclick=undo;
+const manual=()=>{const v=parseFloat($("manual").value); if(validTemp(v)){ensureAudio();addTemp(v);$("manual").value="";} else {SOUND.err();toast("50〜300℃で入力してください");}};
+$("btnManual").onclick=manual; $("manual").addEventListener("keydown",e=>{if(e.key==="Enter")manual();});
+$("btnResUpdate").onclick=()=>{
+  S.roastedG=parseFloat($("roasted").value)||null;
+  const auto=calcDegree(S), prev=S.degree, sel=$("degSel").value;
+  S.degreeAuto=auto.degree; S.degree=sel!==prev?sel:auto.degree;
+  showResult(auto); $("resTitle").textContent=`焙煎度：${S.degree}`; $("degSel").value=S.degree;
+  storeRecord(); sendRecord(S.id);
+};
+$("btnNew").onclick=()=>{S=fresh();$("result").classList.remove("on");$("roasted").value="";$("lcdTime").textContent="00:00";refresh();setButtons();$("heard").textContent="スタートを押すと音声認識が始まります";scrollTo({top:0,behavior:"smooth"});};
+function show(v){["Roast","Hist","Set"].forEach(n=>{$("tab"+n).classList.toggle("on",n===v);$("view"+n).classList.toggle("on",n===v);}); if(v==="Hist")renderHist();}
+$("tabRoast").onclick=()=>show("Roast"); $("tabHist").onclick=()=>show("Hist"); $("tabSet").onclick=()=>show("Set");
+$("gasUrl").value=LS.get("gasUrl",""); $("gasKey").value=LS.get("gasKey","");
+$("btnSaveSet").onclick=()=>{LS.set("gasUrl",$("gasUrl").value.trim());LS.set("gasKey",$("gasKey").value.trim());toast("保存しました");};
+$("btnTest").onclick=async()=>{
+  LS.set("gasUrl",$("gasUrl").value.trim());LS.set("gasKey",$("gasKey").value.trim());
+  $("testState").textContent="接続中…";
+  try{const j=await postGAS({key:LS.get("gasKey",""),test:true}); $("testState").innerHTML=`✅ つながりました：<a href="${esc(j.url)}" target="_blank">${esc(j.name)}</a>`;}
+  catch(e){$("testState").textContent="⚠ つながりません："+e.message;}
+};
+$("tTemp").onclick=()=>{ensureAudio();SOUND.temp();}; $("tFC").onclick=()=>{ensureAudio();SOUND.fc();};
+$("tSC").onclick=()=>{ensureAudio();SOUND.sc();}; $("tStop").onclick=()=>{ensureAudio();SOUND.stop();};
+$("bean").value=LS.get("bean","");
+// 途中で画面を閉じてしまったときの復旧
+(()=>{const d=LS.get("draft",null); if(d&&d.running&&d.points?.length){ S=d; S.running=true; timerId=setInterval(tick,250); setButtons(); $("btnMic").style.display=""; $("heard").textContent="前回の焙煎を復旧しました。「マイク再開」を押してください"; }})();
+refresh(); setButtons(); renderHist();
+if(!SR) $("heard").textContent="このブラウザは音声認識に未対応です（ボタンと手入力は使えます）";
+</script>
+</body>
+</html>
